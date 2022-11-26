@@ -6,7 +6,19 @@
 @Student :   K79735
 @Contact :   antti.i.hakkarainen@tuni.fi
 @Course  :   COMP.CS.100 Ohjelmointi 1.
-@Desc    :   Varastokirjanpito
+@Desc    :   Varastokirjanpito.
+
+This python file has three classes: Data_parser, Product, Warehouse.
+Ideally they would be split to different files, each class having its 
+own file.
+
+Parser needs a filename like 'products.txt' from the user. Parser reads 
+the product data from the file and creates Product objects based on the
+data. Product data is then passed to a Warehouse object.
+
+A menu() function calls the Warehouse's methods with getattr(). Warehouse
+supports the commands listed below in COMMANDS. Warehouse's commands get
+info from the Products or changes them.
 '''
 
 COMMENT_CHAR = '#'
