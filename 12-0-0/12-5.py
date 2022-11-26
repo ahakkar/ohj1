@@ -12,16 +12,29 @@
 LOW_STOCK_LIMIT = 30
 COMMANDS = {"help":     "- Without args, command prints list of all commands.\n"\
                         "- With arg <command> prints a description of the <command>",
+                        
             "print":    "- Without arguments, prints all known products in the\n"\
                         "  ascending order of the product codes.\n"\
                         "- With one argument consisting of a valid product key,\n"\
                         "  prints info about that product.",
+                        
             "change":   "- With one argument (amount of change, positive or negative)\n"\
                         "  modifies the amount of a product in stock.",
-            "delete":   "explanation",
-            "low":      "explanation",
-            "combine":  "explanation",
-            "sale":     "explanation"}
+                        
+            "delete":   "- With arg <key>, deletes a product from warehouse if it\n"\
+                        "  exists and stock amount is <= 0.",
+            
+            "low":      "- Prints a list of items which are under LOW_STOCK_LIMIT,\n"\
+                        "  ordered by item key, to ascending order.",
+            
+            "combine":  "- With args <category1> <category2>, combines two items with\n"\
+                        "  differnt keys, same category and same price.",
+            
+            "sale":     "- With args <category> <sale_percentage>, changes the sale\n"\
+                        "  percentage of items belonging to a category.",
+            
+            "list":     "- Lists all categories, if no params are provided.\n"\
+                        "- Lists all products in a category, if a <category> is provided."}
 
 class Product:
     """
@@ -41,18 +54,22 @@ class Product:
         self.__name = name
         self.__category = category
         self.__price = price
-        self.__stock = stock           
+        self.__stock = stock 
+        self.__sale_per = 0.0 # no sale % by default          
 
     def __str__(self):
         """
         for automated tests
         """
+        # the actual price of the item with sale percentage
+        # for some reason this functionality was originally missing?     
+        price_with_sale_per = (100.0 - self.__sale_per)/100.0 * self.__price
 
         lines = [
             f"Code:     {self.__code}",
             f"Name:     {self.__name}",
             f"Category: {self.__category}",
-            f"Price:    {self.__price:.2f}€",
+            f"Price:    {price_with_sale_per:.2f}€",
             f"Stock:    {self.__stock} units",
         ]
 
@@ -76,26 +93,77 @@ class Product:
                self.__name == other.__name and \
                self.__category == other.__category and \
                self.__price == other.__price
-
-    def modify_stock_size(self, amount):
+               
+    def category(self) -> str:
         """
-        modify stock size
+        Gets the item's category.
+
+        :return: item's category
+        """
+        return self.__category
+    
+    def price(self) -> float:
+        """
+        Gets the item's price.
+
+        :return: Item's price.
+        """
+        return self.__price
+
+    def modify_stock_size(self, amount) -> None:
+        """
+        Modifies stock size.
 
         :param amount: int, amount, + or -
         """
 
         self.__stock += amount
-        
-    # TODO: Multiple methods need to be written here to allow
-    #       all the required commands to be implemented.
     
-    def print_commands(self) -> None:
-        cmds:str = ""
-        for val in COMMANDS:
-            cmds.append(f"{val}, ")
-        
-        print(cmds[0:-2])
+    def name(self) -> str:
+        """
+        Gets the name of the item.
 
+        :return: returns the name of the item.
+        """
+        return self.__name
+    
+    def price(self) -> float:
+        """
+        Gets the item's price.
+
+        :return: Item's price.
+        """
+        return self.__price
+        
+    def set_sale_per(self, per:float) -> None:
+        """
+        Sets the item's sale percentage.
+
+        :param float per: Sale percentage. Hopefully between 0.0-100.0.
+        """
+        self.__sale_per = per        
+        
+    def stock_size(self) -> int:
+        """
+        Gets the amount of item in stock.
+
+        :return: amount of stock
+        """
+        return self.__stock
+    
+    def stock_value(self) -> float:
+        """
+        Gets the value of items in stock.
+
+        :return: value of stock in €
+        """
+        
+        # stock has value if it exists
+        if self.__stock > 0:            
+            return self.__stock * self.__price
+        
+        # if no stock, stock doesn't have any value
+        return 0   
 
 def _read_lines_until(fd, last_line):
     """
@@ -191,7 +259,7 @@ def read_database(filename):
                                   name=product_name,
                                   category=product_category,
                                   price=product_price,
-                                  stock=product_stock)
+                                  stock= int(product_stock))
 
                 # print(product)
 
@@ -219,15 +287,20 @@ class Warehouse:
     This params list style was taught in ohj2 so I assume it is OK to do it.
     """
     def __init__(self):
-        data:dict = {}
-    
-    def __str__(self):
-        pass
-    
+        data:dict = {}    
+   
     def add_data(self, data_to_add:dict):
         self.data = data_to_add
         
     def help(self, params:list) -> None:
+        """
+        Prints list of all commands, or if specific command is give in params,
+        prints info about the cmd.
+        
+        Complains to user about non-existing commands or bad input.
+
+        :param params: which command to get more info about
+        """
         if (len(params) == 0):
             print("Type help <command> to get a description of "\
                   "a specific command.\nList of commands:")
@@ -235,7 +308,7 @@ class Warehouse:
                 print(val)
             return
         elif (len(params) == 1): 
-            if params[0] in COMMANDS:
+            if (params[0] in COMMANDS):
                 print(COMMANDS[params[0]])            
             
             return
@@ -263,32 +336,199 @@ class Warehouse:
             # does params contain a valid key?
             try:
                 key = int(params[0])                      
-                if key in self.data:
+                if (key in self.data):
                     print(self.data[key])   
-                    return                                
+                    return 
+            # according to spec program does not complain specifically about bad number format                               
             except ValueError: 
                 pass
                 
-        print(f"Error: product {' '.join(params)} can not be "
+        print(f"Error: product '{' '.join(params)}' can not be "
                 +"printed as it does not exist.")     
     
     def change(self, params:list) -> None:
-        pass      
+        """
+        Changes amount of product in stock.
+        Complains to user about product not existing, or about
+        bad command.
+
+        :param params: <key> <change>
+        """
+        if(len(params) == 2):
+            try:
+                key:int = int(params[0])
+                change:int = int(params[1])
+                
+                # change amount if key exists and change is a valid int
+                if (key in self.data):
+                    self.data[key].modify_stock_size(change) 
+                else:
+                    print(f"Error: stock for '{key}' can not be changed as it does not exist.")
+                return
+            # according to spec program does not complain specifically about bad number format
+            except ValueError:
+                pass 
+        
+        print(f"Error: bad parameters '{' '.join(params)}' for change command.")     
 
     def delete(self, params:list) -> None:
-        pass
+        """
+        Deletes <key> product from warehouse if it exists and 
+        stock amount is <= 0.
+        
+        Otherwise complains to user about existing stock or bad command.
+
+        :param params: <key>
+        """
+        if(len(params) == 1):
+            try:
+                key = int(params[0])                      
+                if (key in self.data):
+                    if (self.data[key].stock_size() <= 0):
+                        self.data.pop(key) 
+                    else:
+                        print(f"Error: product '{key}' can not be deleted as stock remains.")
+                    return
+            # according to spec program does not complain specifically about bad number format
+            except ValueError:
+                pass
+            
+        print(f"Error: product '{' '.join(params)}' can not be deleted as it does not exist.")     
     
     def low(self, params:list) -> None:
-        pass
+        """
+        Prints a list of items which are under LOW_STOCK_LIMIT,
+        ordered by key ASC
+        
+        If user gave params, complains about a bad command.
+
+        :param params: hopefully none!
+        """
+        if (len(params) == 0):
+            for key, val in sorted(self.data.items()):
+                if (self.data[key].stock_size() < LOW_STOCK_LIMIT):
+                    print(self.data[key])     
+            return 
+        
+        print(f"Error: bad command line 'low {' '.join(params)}'.") 
     
     def combine(self, params:list) -> None:
-        pass
+        """
+        Combines two items, if the items exist, have a different key,
+        belong to a same category and have the same price.
+        
+        Otherwise complains about bad params in diffent ways.
+
+        :param params: <category 1> <category 2>
+        """
+        if(len(params) == 2):            
+            try:      
+                can_combine = True          
+                key1 = int(params[0])
+                key2 = int(params[1])
+                
+                # are the keys same?
+                if (key1 == key2):
+                    can_combine = False
+                    
+                # are both keys in the data?
+                elif not ((key1 in self.data) and (key2 in self.data)):
+                    can_combine = False
+                    
+                # do both items belong to same category?
+                elif (self.data[key1].category() != self.data[key2].category()):
+                    print("Error: combining items of different categories "\
+                         f"'{self.data[key1].category()}' and '{self.data[key2].category()}'.")
+                    return  
+                
+                # do both items have the same price?
+                elif (self.data[key1].price() != self.data[key2].price()): 
+                    print("Error: combining items with different prices "\
+                         f"'{self.data[key1].price()}' and '{self.data[key2].price()}'.")
+                    return           
+                
+                # if nothing went wrong, we can combine the items    
+                if can_combine:
+                    self.data[key1].modify_stock_size(self.data[key2].stock_size())   
+                    self.data.pop(key2) 
+                    return 
+                                  
+            # according to spec program does not complain specifically about bad number format
+            except ValueError:
+                pass
+        
+        print(f"Error: bad parameters '{' '.join(params)}' for combine command.")   
     
     def sale(self, params:list) -> None:
-        pass
-    
+        """
+        Changes the sale percentage of items belonging to a <category>.
+
+        :param params: <category: str> <sale_percentage: float>
+        """
+        if(len(params) == 2):            
+            try:
+                count:int = 0
+                cat = params[0]
+                sale_per = float(params[1])                 
+                
+                # change sale percentage for items with <cat> category                     
+                for key, val in self.data.items():
+                    if self.data[key].category() == cat:
+                        self.data[key].set_sale_per(sale_per)
+                        count += 1
+                        
+                print(f"Sale price set for {count} items.")
+                return                  
+            # according to spec program does not complain specifically about bad number format
+            except ValueError:
+                pass
+            except OverflowError:
+                print(f"Error: overflow error with '{sale_per}'.")                
+            
+                
+        print(f"Error: bad parameters '{' '.join(params)}' for sale command.")
+        
+    def list(self, params: list) -> None:
+        """
+        Lists all categories, if no params are provided.
+        Lists all products in a category, if a <category> is provided.
+
+        :param list params: no params, or a <category>
+        """
+        
+        # prints a list of item categories.   
+        if (len(params) == 0):
+            cats:set = set()
+            for key, val in self.data.items():
+                cats.add(val.category())
+            
+            print("List of current product categories:")
+            print(', '.join(sorted(cats)))
+            return
+        
+        # prints items in a category
+        elif (len(params) == 1):
+            cat:str = params[0]
+            products:set = set()
+            for key, val in self.data.items():
+                if (cat == val.category()):
+                    products.add(val.name())
+            
+            # nothing in the category?
+            if (len(products) == 0):
+                print(f"No products in category '{cat}'.")
+                return
+            
+            # list the products found
+            print(f"List of products in category '{cat}':")
+            print(', '.join(sorted(products)))
+            return            
+            
+        print(f"Error: bad parameters '{' '.join(params)}' for list command.")
+        
 def menu(data:dict) -> None:
-    """Handles menu and user cmds_
+    """
+    Displays menu and executes user cmds.
 
     :param  data: dict with product objects
     :return None
@@ -314,13 +554,10 @@ def menu(data:dict) -> None:
             try:
                 getattr(wh, cmd)(params)
             except AttributeError: 
-                continue
+                print(f"Error: command '{cmd}' does not exist.")
         # otherwise complain about bad cmd
         else:              
-            print(f"Error: bad command line '{command_line}'.")        
-    
-    return None
-
+            print(f"Error: bad command line '{command_line}'.")      
 
 def main():
     # filename = input("Enter database name: ")
