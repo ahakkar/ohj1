@@ -405,11 +405,14 @@ class Data_parser:
     """
     def __init__(self, filename):
         self.__data:dict = {}
+        self.__rows:list = []
         self.__row_nr: int = 1
         self.__filename: str = filename
+        self.__product_info:dict = {}
         
         # get data
         self.__read_data_from_file()
+        self.__parse_data()
         
     def __add_product_to_data(self, product:list):
         """
@@ -419,52 +422,70 @@ class Data_parser:
         param : list of product values.
         return: none
         """
-        product_info:dict = {}
+        self.__product_info:dict = {}
         
+        # add key, val pair to __product_info if it's good
         for item in product:
-            try:
-                key, val = item.split(maxsplit=1) 
-                if key in ("CODE", "STOCK"):
-                    val = int(val)
-                elif key == "PRICE":
-                    val = float(val)
-                elif key in ("NAME", "CATEGORY"):
-                    pass
-                else:
-                    print(f"Error: an unknown data identifier '{key}'.")
-                    return None  
-            
-                product_info[key] = val
-            except ValueError:
-                print(f"Error: bad data in row {self.__row_nr}: {item}")
-                return None
-            except OverflowError:
-                print(f"Error: bad data in row {self.__row_nr}: {item}")     
+            key, val = item.split(maxsplit = 1)            
+            if not self.__are_product_row_values_good(key, val):
+                return None              
         
         # product must have 5 properties
-        if len(product_info) != 5:
+        if len(self.__product_info) != 5:
             print(f"Error: a product block has invalid data lines above row {self.__row_nr}.")        
         
         # create a Product object from the properties and values
-        product_object = Product(product_info["CODE"],
-                                 product_info["NAME"],                                 
-                                 product_info["CATEGORY"],
-                                 product_info["PRICE"],
-                                 product_info["STOCK"])
+        product_object = Product(self.__product_info["CODE"],
+                                 self.__product_info["NAME"],                                 
+                                 self.__product_info["CATEGORY"],
+                                 self.__product_info["PRICE"],
+                                 self.__product_info["STOCK"])
         
         # try to add the product object to data
-        if product_info["CODE"] in self.__data:
+        if self.__product_info["CODE"] in self.__data:
             # if two product objects are the same, combine the stock
-            if product_object == self.__data[product_info["CODE"]]:
-                self.__data[product_info["CODE"]].modify_stock_size(product_info["STOCK"])
+            if product_object == self.__data[self.__product_info["CODE"]]:
+                self.__data[self.__product_info["CODE"]].\
+                modify_stock_size(self.__product_info["STOCK"])
             # otherwise complain about bad data
             else:
-                print(f"Error: product code '{product_info['CODE']}' conflicting data.")
+                print(f"Error: product code '{self.__product_info['CODE']}' conflicting data.")
                 return None
             
         # finally add the object to data
         else:
-            self.__data[product_info["CODE"]] = product_object   
+            self.__data[self.__product_info["CODE"]] = product_object   
+    
+    def __are_product_row_values_good(self, key, val) -> bool:
+        """
+        Checks for any errors in a provided product item key, value pair.
+        
+        Adds key, value pair to __product_info if it's good.
+        param key: product item's key
+        param val: product item's value
+        return: bool good/bad data?
+        """
+        
+        try:            
+            if key in ("CODE", "STOCK"):
+                val = int(val)
+            elif key == "PRICE":
+                val = float(val)
+            elif key in ("NAME", "CATEGORY"):
+                pass
+            else:
+                print(f"Error: an unknown data identifier '{key}'.")
+                return False 
+
+            # if no faults were found at this stage..
+            self.__product_info[key] = val
+            return True
+        except ValueError:
+            print(f"Error: bad data in row {self.__row_nr}: {key} {val}")
+            return False
+        except OverflowError:
+            print(f"Error: bad data in row {self.__row_nr}: {key} {val}") 
+            return False  
     
     def data(self) -> dict:
         """
@@ -475,18 +496,18 @@ class Data_parser:
         """
         return self.__data   
 
-    def __parse_data(self, rows:list) -> None:
+    def __parse_data(self) -> None:
         """
         Goes through all the read rows.
         Checks for empty rows, commented rows, comments after product info.
         
         param : TODO        
-        """
-        data:dict = {}
+        """        
+    
         product: list = []
         product_found:bool = False
         
-        for row in rows:
+        for row in self.__rows:
             # skip empty rows
             if (len(row) == 0):
                 continue
@@ -523,28 +544,28 @@ class Data_parser:
             # increment current row number
             self.__row_nr +=1
             
-    def __read_data_from_file(self) -> list:
+    def __read_data_from_file(self):
         """
         param : str, filename to read
         return: dict with data parsed by parse_data()
-        """
-        data:dict = {}
+        """        
         
         try:
             with open (self.__filename, "r") as read_file:
-                rows:list = read_file.read().splitlines()
-            read_file.close()
-            data:dict = self.__parse_data(rows)
-            return data
-        
+                self.__rows:list = read_file.read().splitlines()
+            read_file.close()  
+            return 
+        except FileNotFoundError:
+            print(f"File {self.__filename} not found.")
+            return   
         except OSError:
-            print("Bad file name!")
-        
-        return data          
+            print("Bad file name!")   
+            return  
+      
         
 def menu(warehouse:object) -> None:
     """
-    Displays menu and executes user cmds.
+    Displays menu and executes user cmds to provided Warehouse object
 
     :param  warehouse: Warehouse object populated with Products
     :return None
@@ -573,17 +594,16 @@ def menu(warehouse:object) -> None:
 
 def main():
     filename = input("Enter database name: ")
-    # filename = "tiny_products.txt"
 
     # read data from file
     parser = Data_parser(filename)  
     # nothing read?
-    if parser.data() is None:
-        return
-    
+    if parser.data() == {}:
+        return 1
+        
     warehouse = Warehouse(parser.data())
 
-    # main menu
+    # give the Warehouse object to main menu
     menu(warehouse)
     
     return 0
