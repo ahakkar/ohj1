@@ -9,6 +9,7 @@
 @Desc    :   Varastokirjanpito
 '''
 
+COMMENT_CHAR = '#'
 LOW_STOCK_LIMIT = 30
 COMMANDS = {"help":     "- Without args, command prints list of all commands.\n"\
                         "- With arg <command> prints a description of the <command>",
@@ -38,7 +39,7 @@ COMMANDS = {"help":     "- Without args, command prints list of all commands.\n"
 
 class Product:
     """
-    This class represent a product i.e. an item available for sale.
+    This class represents a product, meaning an item available for sale.
     """
 
     def __init__(self, code, name, category, price, stock):
@@ -59,7 +60,7 @@ class Product:
 
     def __str__(self):
         """
-        for automated tests
+        For automated tests.
         """
         # the actual price of the item with sale percentage
         # for some reason this functionality was originally missing?     
@@ -86,7 +87,7 @@ class Product:
 
     def __eq__(self, other):
         """
-        for automated tests
+        For automated tests.
         """
 
         return self.__code == other.__code and \
@@ -101,14 +102,6 @@ class Product:
         :return: item's category
         """
         return self.__category
-    
-    def price(self) -> float:
-        """
-        Gets the item's price.
-
-        :return: Item's price.
-        """
-        return self.__price
 
     def modify_stock_size(self, amount) -> None:
         """
@@ -163,135 +156,15 @@ class Product:
             return self.__stock * self.__price
         
         # if no stock, stock doesn't have any value
-        return 0   
-
-def _read_lines_until(fd, last_line):
-    """
-    read lines until
-
-    :param fd: file, file descriptor the input is read from.
-    :param last_line: str, reads lines until <last_line> is found.
-    :return: list[str] | None
-    """
-
-    lines = []
-
-    while True:
-        line = fd.readline()
-
-        if line == "":
-            return None
-
-        hashtag_position = line.find("#")
-        if hashtag_position != -1:
-            line = line[:hashtag_position]
-
-        line = line.strip()
-
-        if line == "":
-            continue
-
-        elif line == last_line:
-            return lines
-
-        else:
-            lines.append(line)
-
-
-def read_database(filename):
-    """
-    read a file
-
-    :param filename: str, name of the file to be read.
-    :return: dict[int, Product] | None
-    """
-
-    data = {}
-
-    try:
-        with open(filename, mode="r", encoding="utf-8") as fd:
-
-            while True:
-                lines = _read_lines_until(fd, "BEGIN PRODUCT")
-                if lines is None:
-                    return data
-
-                lines = _read_lines_until(fd, "END PRODUCT")
-                if lines is None:
-                    print(f"Error: premature end of file while reading '{filename}'.")
-                    return None
-
-                # print(f"TEST: {lines=}")
-
-                collected_product_info = {}
-
-                for line in lines:
-                    keyword, value = line.split(maxsplit=1)  # ValueError possible
-
-                    # print(f"TEST: {keyword=} {value=}")
-
-                    if keyword in ("CODE", "STOCK"):
-                        value = int(value)  # ValueError possible
-
-                    elif keyword in ("NAME", "CATEGORY"):
-                        pass  # No conversion is required for string values.
-
-                    elif keyword == "PRICE":
-                        value = float(value)  # ValueError possible
-
-                    else:
-                        print(f"Error: an unknown data identifier '{keyword}'.")
-                        return None
-
-                    collected_product_info[keyword] = value
-
-                if len(collected_product_info) < 5:
-                    print(f"Error: a product block is missing one or more data lines.")
-                    return None
-
-                product_code = collected_product_info["CODE"]
-                product_name = collected_product_info["NAME"]
-                product_category = collected_product_info["CATEGORY"]
-                product_price = collected_product_info["PRICE"]
-                product_stock = collected_product_info["STOCK"]
-
-                product = Product(code=product_code,
-                                  name=product_name,
-                                  category=product_category,
-                                  price=product_price,
-                                  stock= int(product_stock))
-
-                # print(product)
-
-                if product_code in data:
-                    if product == data[product_code]:
-                        data[product_code].modify_stock_size(product_stock)
-
-                    else:
-                        print(f"Error: product code '{product_code}' conflicting data.")
-                        return None
-
-                else:
-                    data[product_code] = product
-
-    except OSError:
-        print(f"Error: opening the file '{filename}' failed.")
-        return None
-
-    except ValueError:
-        print(f"Error: something wrong on line '{line}'.")
-        return None
+        return 0.0
 
 class Warehouse:
     """
     This params list style was taught in ohj2 so I assume it is OK to do it.
     """
-    def __init__(self):
-        data:dict = {}    
-   
-    def add_data(self, data_to_add:dict):
-        self.data = data_to_add
-        
+    def __init__(self, data):
+        self.__data:dict = data
+                
     def help(self, params:list) -> None:
         """
         Prints list of all commands, or if specific command is give in params,
@@ -327,7 +200,7 @@ class Warehouse:
                                  
         # print all dict values sorted by key
         if (len(params) == 0):
-            for key, val in sorted(self.data.items()):
+            for key, val in sorted(self.__data.items()):
                 print(val)   
             return     
                 
@@ -336,8 +209,8 @@ class Warehouse:
             # does params contain a valid key?
             try:
                 key = int(params[0])                      
-                if (key in self.data):
-                    print(self.data[key])   
+                if (key in self.__data):
+                    print(self.__data[key])   
                     return 
             # according to spec program does not complain specifically about bad number format                               
             except ValueError: 
@@ -360,8 +233,8 @@ class Warehouse:
                 change:int = int(params[1])
                 
                 # change amount if key exists and change is a valid int
-                if (key in self.data):
-                    self.data[key].modify_stock_size(change) 
+                if (key in self.__data):
+                    self.__data[key].modify_stock_size(change) 
                 else:
                     print(f"Error: stock for '{key}' can not be changed as it does not exist.")
                 return
@@ -383,9 +256,9 @@ class Warehouse:
         if(len(params) == 1):
             try:
                 key = int(params[0])                      
-                if (key in self.data):
-                    if (self.data[key].stock_size() <= 0):
-                        self.data.pop(key) 
+                if (key in self.__data):
+                    if (self.__data[key].stock_size() <= 0):
+                        self.__data.pop(key) 
                     else:
                         print(f"Error: product '{key}' can not be deleted as stock remains.")
                     return
@@ -405,9 +278,9 @@ class Warehouse:
         :param params: hopefully none!
         """
         if (len(params) == 0):
-            for key, val in sorted(self.data.items()):
-                if (self.data[key].stock_size() < LOW_STOCK_LIMIT):
-                    print(self.data[key])     
+            for key, val in sorted(self.__data.items()):
+                if (self.__data[key].stock_size() < LOW_STOCK_LIMIT):
+                    print(self.__data[key])     
             return 
         
         print(f"Error: bad command line 'low {' '.join(params)}'.") 
@@ -432,25 +305,25 @@ class Warehouse:
                     can_combine = False
                     
                 # are both keys in the data?
-                elif not ((key1 in self.data) and (key2 in self.data)):
+                elif not ((key1 in self.__data) and (key2 in self.__data)):
                     can_combine = False
                     
                 # do both items belong to same category?
-                elif (self.data[key1].category() != self.data[key2].category()):
+                elif (self.__data[key1].category() != self.__data[key2].category()):
                     print("Error: combining items of different categories "\
-                         f"'{self.data[key1].category()}' and '{self.data[key2].category()}'.")
+                         f"'{self.__data[key1].category()}' and '{self.__data[key2].category()}'.")
                     return  
                 
                 # do both items have the same price?
-                elif (self.data[key1].price() != self.data[key2].price()): 
+                elif (self.__data[key1].price() != self.__data[key2].price()): 
                     print("Error: combining items with different prices "\
-                         f"'{self.data[key1].price()}' and '{self.data[key2].price()}'.")
+                         f"'{self.__data[key1].price()}' and '{self.__data[key2].price()}'.")
                     return           
                 
                 # if nothing went wrong, we can combine the items    
                 if can_combine:
-                    self.data[key1].modify_stock_size(self.data[key2].stock_size())   
-                    self.data.pop(key2) 
+                    self.__data[key1].modify_stock_size(self.data[key2].stock_size())   
+                    self.__data.pop(key2) 
                     return 
                                   
             # according to spec program does not complain specifically about bad number format
@@ -472,9 +345,9 @@ class Warehouse:
                 sale_per = float(params[1])                 
                 
                 # change sale percentage for items with <cat> category                     
-                for key, val in self.data.items():
-                    if self.data[key].category() == cat:
-                        self.data[key].set_sale_per(sale_per)
+                for key, val in self.__data.items():
+                    if self.__data[key].category() == cat:
+                        self.__data[key].set_sale_per(sale_per)
                         count += 1
                         
                 print(f"Sale price set for {count} items.")
@@ -499,7 +372,7 @@ class Warehouse:
         # prints a list of item categories.   
         if (len(params) == 0):
             cats:set = set()
-            for key, val in self.data.items():
+            for key, val in self.__data.items():
                 cats.add(val.category())
             
             print("List of current product categories:")
@@ -510,7 +383,7 @@ class Warehouse:
         elif (len(params) == 1):
             cat:str = params[0]
             products:set = set()
-            for key, val in self.data.items():
+            for key, val in self.__data.items():
                 if (cat == val.category()):
                     products.add(val.name())
             
@@ -524,19 +397,158 @@ class Warehouse:
             print(', '.join(sorted(products)))
             return            
             
-        print(f"Error: bad parameters '{' '.join(params)}' for list command.")
+        print(f"Error: bad parameters '{' '.join(params)}' for list command.")     
+class Data_parser:
+    """
+    Parses automatically data to key <product_id>, value <Product object> format
+    from provided file
+    """
+    def __init__(self, filename):
+        self.__data:dict = {}
+        self.__row_nr: int = 1
+        self.__filename: str = filename
         
-def menu(data:dict) -> None:
+        # get data
+        self.__read_data_from_file()
+        
+    def __add_product_to_data(self, product:list):
+        """
+        Go through given product items and check they have a proper key and value.
+        If they are good, create a Product object and add it to product database.
+        
+        param : list of product values.
+        return: none
+        """
+        product_info:dict = {}
+        
+        for item in product:
+            try:
+                key, val = item.split(maxsplit=1) 
+                if key in ("CODE", "STOCK"):
+                    val = int(val)
+                elif key == "PRICE":
+                    val = float(val)
+                elif key in ("NAME", "CATEGORY"):
+                    pass
+                else:
+                    print(f"Error: an unknown data identifier '{key}'.")
+                    return None  
+            
+                product_info[key] = val
+            except ValueError:
+                print(f"Error: bad data in row {self.__row_nr}: {item}")
+                return None
+            except OverflowError:
+                print(f"Error: bad data in row {self.__row_nr}: {item}")     
+        
+        # product must have 5 properties
+        if len(product_info) != 5:
+            print(f"Error: a product block has invalid data lines above row {self.__row_nr}.")        
+        
+        # create a Product object from the properties and values
+        product_object = Product(product_info["CODE"],
+                                 product_info["NAME"],                                 
+                                 product_info["CATEGORY"],
+                                 product_info["PRICE"],
+                                 product_info["STOCK"])
+        
+        # try to add the product object to data
+        if product_info["CODE"] in self.__data:
+            # if two product objects are the same, combine the stock
+            if product_object == self.__data[product_info["CODE"]]:
+                self.__data[product_info["CODE"]].modify_stock_size(product_info["STOCK"])
+            # otherwise complain about bad data
+            else:
+                print(f"Error: product code '{product_info['CODE']}' conflicting data.")
+                return None
+            
+        # finally add the object to data
+        else:
+            self.__data[product_info["CODE"]] = product_object   
+    
+    def data(self) -> dict:
+        """
+        Returns the automatically created and collected dict.
+        Data was read from provided filename and parsed.
+
+        :return: dict, data
+        """
+        return self.__data   
+
+    def __parse_data(self, rows:list) -> None:
+        """
+        Goes through all the read rows.
+        Checks for empty rows, commented rows, comments after product info.
+        
+        param : TODO        
+        """
+        data:dict = {}
+        product: list = []
+        product_found:bool = False
+        
+        for row in rows:
+            # skip empty rows
+            if (len(row) == 0):
+                continue
+            # skip commented rows
+            elif row[0].strip() == COMMENT_CHAR:
+                continue        
+            # if we find a product, remember it and continue
+            elif row == "BEGIN PRODUCT":
+                product_found = True
+                continue        
+
+            # after product info ends, check if we found enough product rows
+            if row == "END PRODUCT":
+                if product_found == True:
+                    # if product doesn't have required amount of rows, abort
+                    if (len(product) != 5):                    
+                        print(f"Error: invalid product info before row {self.__row_nr}") 
+                        return None
+                    # otherwise check and then add product data
+                    self.__add_product_to_data(product)
+                    product_found = False
+                    product = []
+                    
+            # In rows which probably contain product info, collect it.
+            elif product_found:
+                # check if the line has a comment after product data
+                comment_start: int = row.find(COMMENT_CHAR)
+                if comment_start != -1:
+                    row = row[:comment_start].strip()
+                
+                # finally add a row to product info
+                product.append(row)
+                    
+            # increment current row number
+            self.__row_nr +=1
+            
+    def __read_data_from_file(self) -> list:
+        """
+        param : str, filename to read
+        return: dict with data parsed by parse_data()
+        """
+        data:dict = {}
+        
+        try:
+            with open (self.__filename, "r") as read_file:
+                rows:list = read_file.read().splitlines()
+            read_file.close()
+            data:dict = self.__parse_data(rows)
+            return data
+        
+        except OSError:
+            print("Bad file name!")
+        
+        return data          
+        
+def menu(warehouse:object) -> None:
     """
     Displays menu and executes user cmds.
 
-    :param  data: dict with product objects
+    :param  warehouse: Warehouse object populated with Products
     :return None
     """
-    
-    # custom class containing methods for each cmd
-    wh = Warehouse()
-    wh.add_data(data)
     
     while True:
         command_line = input("Enter command: ").strip()
@@ -552,7 +564,7 @@ def menu(data:dict) -> None:
         # this style was taught in ohj2 couse project 3: book
         if cmd in COMMANDS:        
             try:
-                getattr(wh, cmd)(params)
+                getattr(warehouse, cmd)(params)
             except AttributeError: 
                 print(f"Error: command '{cmd}' does not exist.")
         # otherwise complain about bad cmd
@@ -560,12 +572,16 @@ def menu(data:dict) -> None:
             print(f"Error: bad command line '{command_line}'.")      
 
 def main():
-    # filename = input("Enter database name: ")
-    filename = "products.txt"
+    filename = input("Enter database name: ")
+    # filename = "tiny_products.txt"
 
-    warehouse = read_database(filename)
-    if warehouse is None:
+    # read data from file
+    parser = Data_parser(filename)  
+    # nothing read?
+    if parser.data() is None:
         return
+    
+    warehouse = Warehouse(parser.data())
 
     # main menu
     menu(warehouse)
