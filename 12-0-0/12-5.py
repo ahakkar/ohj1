@@ -172,7 +172,9 @@ class Product:
 
 class Warehouse:
     """
-    This params list style was taught in ohj2 so I assume it is OK to do it.
+    This params list style was taught in ohj2 so I assume it is OK to do it. 
+    Saves Products to Warehouse. Theoretically you could have multiple Warehouses
+    and move Products between them.
     """
     def __init__(self, data):
         self.__data:dict = data
@@ -329,12 +331,13 @@ class Warehouse:
                 # do both items have the same price?
                 elif (self.__data[key1].price() != self.__data[key2].price()): 
                     print("Error: combining items with different prices "\
-                         f"'{self.__data[key1].price()}' and '{self.__data[key2].price()}'.")
+                         f"{self.__data[key1].price()}€ and {self.__data[key2].price()}€.")
                     return           
                 
                 # if nothing went wrong, we can combine the items    
-                if can_combine:
-                    self.__data[key1].modify_stock_size(self.data[key2].stock_size())   
+                if can_combine:                    
+                    self.__data[key1].modify_stock_size(self.__data[key2].stock_size()) 
+                    # remove the item given in 2nd param after combining stock
                     self.__data.pop(key2) 
                     return 
                                   
@@ -413,7 +416,8 @@ class Warehouse:
 class Data_parser:
     """
     Parses automatically data to key <product_id>, value <Product object> format
-    from provided file
+    from provided file. This is a quite bad good solution compared to the provided
+    functions, but I wanted to try to do something for a change.
     """
     def __init__(self, filename):
         self.__data:dict = {}
@@ -426,13 +430,13 @@ class Data_parser:
         self.__read_data_from_file()
         self.__parse_data()
         
-    def __add_product_to_data(self, product:list):
+    def __add_product_to_data(self, product:list) -> int:
         """
         Go through given product items and check they have a proper key and value.
         If they are good, create a Product object and add it to product database.
         
         param : list of product values.
-        return: none
+        return: int: 0 success, 1 failure
         """
         self.__product_info:dict = {}
         
@@ -440,11 +444,12 @@ class Data_parser:
         for item in product:
             key, val = item.split(maxsplit = 1)            
             if not self.__are_product_row_values_good(key, val):
-                return None              
+                return 1              
         
         # product must have 5 properties
         if len(self.__product_info) != 5:
-            print(f"Error: a product block has invalid data lines above row {self.__row_nr}.")        
+            print(f"Error: a product block has invalid data lines above row {self.__row_nr}.") 
+            return 1       
         
         # create a Product object from the properties and values
         product_object = Product(self.__product_info["CODE"],
@@ -459,14 +464,16 @@ class Data_parser:
             if product_object == self.__data[self.__product_info["CODE"]]:
                 self.__data[self.__product_info["CODE"]].\
                 modify_stock_size(self.__product_info["STOCK"])
+                return 0
             # otherwise complain about bad data
             else:
                 print(f"Error: product code '{self.__product_info['CODE']}' conflicting data.")
-                return None
+                return 1
             
         # finally add the object to data
         else:
-            self.__data[self.__product_info["CODE"]] = product_object   
+            self.__data[self.__product_info["CODE"]] = product_object  
+            return 0 
     
     def __are_product_row_values_good(self, key, val) -> bool:
         """
@@ -534,12 +541,11 @@ class Data_parser:
             # after product info ends, check if we found enough product rows
             if row == "END PRODUCT":
                 if product_found == True:
-                    # if product doesn't have required amount of rows, abort
-                    if (len(product) != 5):                    
+                    # if product doesn't have required amount of rows, or data is bad, abort
+                    test_value:int = self.__add_product_to_data(product)
+                    if (len(product) != 5) or (test_value > 0):                  
                         print(f"Error: invalid product info before row {self.__row_nr}") 
-                        return None
-                    # otherwise check and then add product data
-                    self.__add_product_to_data(product)
+                        return None                   
                     product_found = False
                     product = []
                     
